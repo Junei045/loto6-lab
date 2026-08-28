@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#1a1206" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="ロト6ラボ" />
+<title>ロト6 分析＆予測ラボ — 過去10年データ</title>
+<meta name="description" content="ロト6の過去10年・1032回分の当選番号を集計・分析し、統計に基づく候補番号を生成するツール。" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet" />
+<script src="vendor/chart.umd.min.js"></script>
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23f5b942'/%3E%3Ctext x='16' y='21' font-size='14' text-anchor='middle' fill='%231a1206' font-family='sans-serif' font-weight='bold'%236%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffd97a"/>
+      <stop offset="100%" stop-color="#e8950a"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 40 40" aria-label="ロト6 ラボ ロゴ">
+      <circle cx="20" cy="20" r="18" fill="url(#goldGrad)" stroke="#1a1206" stroke-width="1.5"/>
+      <text x="20" y="25" font-size="13" text-anchor="middle" fill="#1a1206" font-family="JetBrains Mono, monospace" font-weight="700">L6</text>
+    </svg>
+    <div>
+      <h1>ロト6 分析＆予測ラボ</h1>
+      <p class="sub">過去10年・<span id="hdr-count">—</span>回分の公開データに基づく統計分析</p>
+      <p class="freshness">最新抽せん: <strong id="fresh-latest">—</strong> ／ 最終更新: <strong id="fresh-updated">—</strong></p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="range-pill" id="range-pill">読み込み中…</div>
+    <button class="btn-theme" id="themeBtn" type="button" aria-label="表示テーマ切替">🌙</button>
+  </div>
+</header>
+
+<div class="disclaimer">
+  <strong>注意 — お読みください</strong>
+  <p>ロト6の抽せんは<span class="hl">完全に独立したランダムな事象</span>です。過去の出現傾向が未来の当選番号に影響を与えることはありません。本ツールは<span class="hl">統計の可視化と娯楽目的</span>であり、当選を保証・予知するものではありません。くれぐれも自己責任でお楽しみください。</p>
+</div>
+
+<main class="grid">
+
+  <!-- KPI cards -->
+  <section class="kpi-row">
+    <div class="kpi"><span class="kpi-num" id="kpi-draws">—</span><span class="kpi-label">分析対象 回数</span></div>
+    <div class="kpi"><span class="kpi-num" id="kpi-period">—</span><span class="kpi-label">対象期間</span></div>
+    <div class="kpi"><span class="kpi-num" id="kpi-chi">—</span><span class="kpi-label">カイ二乗統計量</span></div>
+    <div class="kpi"><span class="kpi-num" id="kpi-mean">—</span><span class="kpi-label">本数字 合計 平均</span></div>
+  </section>
+
+  <!-- Frequency chart -->
+  <section class="card card-wide">
+    <div class="card-head">
+      <h2>出現回数 1〜43</h2>
+      <span class="card-sub">本数字のみ / 期待値との比較</span>
+    </div>
+    <div class="chart-wrap"><canvas id="freqChart"></canvas></div>
+    <p class="note" id="chi-note">—</p>
+  </section>
+
+  <!-- Hot / Cold -->
+  <section class="card">
+    <div class="card-head"><h2>ホットナンバー</h2><span class="card-sub">過去10年 出現多</span></div>
+    <ol class="numlist hot" id="hotList"></ol>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>コールドナンバー</h2><span class="card-sub">過去10年 出現少</span></div>
+    <ol class="numlist cold" id="coldList"></ol>
+  </section>
+
+  <!-- Prediction -->
+  <section class="card card-wide predict">
+    <div class="card-head"><h2>候補番号ジェネレーター</h2><span class="card-sub">3つの統計アプローチ＋比較用ランダム</span></div>
+    <div class="predict-controls">
+      <button class="btn-mode active" data-mode="freq">① 頻度重視</button>
+      <button class="btn-mode" data-mode="recent">② 直近トレンド</button>
+      <button class="btn-mode" data-mode="balance">③ バランス型</button>
+      <button class="btn-mode" data-mode="random">④ 完全ランダム</button>
+      <button class="btn-mode" data-mode="unpopular">⑤ 分け前重視</button>
+    </div>
+    <div class="predict-balls" id="predictBalls">
+      <span class="ball placeholder">?</span><span class="ball placeholder">?</span><span class="ball placeholder">?</span><span class="ball placeholder">?</span><span class="ball placeholder">?</span><span class="ball placeholder">?</span>
+    </div>
+    <div class="predict-meta" id="predictMeta">モードを選んで「生成」を押してください</div>
+    <div class="predict-pop" id="predictPop"></div>
+    <div class="predict-actions">
+      <button class="btn-primary" id="generateBtn">候補を生成</button>
+      <button class="btn-ghost" id="gen5Btn">5セット一括生成</button>
+    </div>
+    <div class="predict-set" id="predictSet"></div>
+    <p class="note" id="predictNote"></p>
+  </section>
+
+
+
+  <!-- Popularity -->
+  <section class="card card-wide">
+    <div class="card-head">
+      <h2>買われやすさ指数 1〜43</h2>
+      <span class="card-sub">当せん口数から逆算 / 100＝平均</span>
+    </div>
+    <div class="chart-wrap"><canvas id="popChart"></canvas></div>
+    <p class="note" id="pop-note">—</p>
+  </section>
+
+  <!-- Odds -->
+  <section class="card">
+    <div class="card-head"><h2>当せん確率（理論値）</h2><span class="card-sub">43個から6個を選ぶ組合せ数から計算</span></div>
+    <table class="oddstable" id="oddsTable"></table>
+    <p class="note">どの6個の組合せを選んでも1等の確率は同じ 1/6,096,454 です。過去の出現頻度でこの数字は変わりません。</p>
+  </section>
+
+  <!-- Backtest -->
+  <section class="card card-wide backtest">
+    <div class="card-head"><h2>予測法の検証（バックテスト）</h2><span class="card-sub">「過去に使っていたら当たっていたか」を実測</span></div>
+    <p class="note" style="margin-top:0">直近<strong id="btDraws">200</strong>回の各抽せんについて、その時点までのデータだけで各モードの候補を<strong id="btTickets">200</strong>口ずつ生成し、実際の本数字と何個一致したかを集計します。理論上の期待値は 1口あたり <strong>0.837個</strong>（＝6×6÷43）です。</p>
+    <div class="predict-actions">
+      <button class="btn-primary" id="backtestBtn">検証を実行する</button>
+      <span class="note" id="btStatus" style="margin:0"></span>
+    </div>
+    <div class="table-scroll"><table class="bttable" id="btTable"></table></div>
+    <p class="note" id="btNote"></p>
+  </section>
+
+  <!-- Odd/Even -->
+  <section class="card">
+    <div class="card-head"><h2>奇数 / 偶数 バランス</h2><span class="card-sub">出現割合</span></div>
+    <div class="chart-wrap small"><canvas id="oeChart"></canvas></div>
+  </section>
+
+  <!-- Sum distribution -->
+  <section class="card">
+    <div class="card-head"><h2>本数字 合計値 分布</h2><span class="card-sub">平均 <span id="sumMean">—</span></span></div>
+    <div class="chart-wrap small"><canvas id="sumChart"></canvas></div>
+  </section>
+
+  <!-- Consecutive -->
+  <section class="card stat-tile">
+    <div class="stat-big" id="consecPct">—</div>
+    <p class="stat-label">の抽せんで連番を含む</p>
+    <p class="note">6個中に隣り合う数字（例：17,18）が存在する回の割合</p>
+  </section>
+
+  <!-- Recent draws -->
+  <section class="card card-wide">
+    <div class="card-head"><h2>直近の当選番号</h2><span class="card-sub">最新 <span id="recentCount">20</span> 件</span></div>
+    <div class="table-scroll">
+      <table class="drawtable">
+        <thead><tr><th>回</th><th>日付</th><th>本数字</th><th>B</th><th>1等</th></tr></thead>
+        <tbody id="recentTable"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>データ元：<a href="https://loto6.thekyo.jp/database/allresultyen" target="_blank" rel="noopener">KYO's LOTO6 公開CSVデータ（公式抽せん結果に基づく）</a> ｜ 抽せん結果：<a href="https://www.mizuhobank.co.jp/takarakuji/check/loto/loto6/index.html" target="_blank" rel="noopener">みずほ銀行 当せん番号案内</a></p>
+    <p class="note">本サイトは統計可視化ツールであり、宝くじの購入を勧めるものではありません。</p>
+  </footer>
+</main>
+
+<script src="data/draws.js"></script>
+<script src="data/stats.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
